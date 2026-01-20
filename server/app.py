@@ -56,6 +56,24 @@ def static_files(filename):
     return send_from_directory(app.static_folder, filename)
 
 
+@app.route('/css/<path:filename>')
+def css_files(filename):
+    """Serve CSS files"""
+    return send_from_directory(f'{app.static_folder}/css', filename)
+
+
+@app.route('/js/<path:filename>')
+def js_files(filename):
+    """Serve JS files"""
+    return send_from_directory(f'{app.static_folder}/js', filename)
+
+
+@app.route('/assets/<path:filename>')
+def asset_files(filename):
+    """Serve asset files"""
+    return send_from_directory(f'{app.static_folder}/assets', filename)
+
+
 # ============== Socket Events ==============
 
 @socketio.on('connect')
