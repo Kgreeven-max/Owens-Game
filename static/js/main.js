@@ -84,11 +84,6 @@ class Game {
                 } else if (data.state && data.state.state === 'playing') {
                     gameRenderer.showCountdown(-1);
                 }
-
-                // Handle cop warning
-                if (data.state && data.state.events) {
-                    gameRenderer.showCopWarning(data.state.events.cop_warning || data.state.events.cop_active);
-                }
             }
         };
 
@@ -118,6 +113,11 @@ class Game {
 
         // Show game screen
         ui.showScreen('game');
+
+        // Resize canvas now that the game screen is visible
+        if (gameRenderer) {
+            gameRenderer.resize();
+        }
 
         // Enable input
         input.enable();
@@ -157,28 +157,6 @@ class Game {
 
     handleGameEvent(event) {
         switch (event.type) {
-            case 'cop_warning':
-                gameRenderer.showCopWarning(true);
-                // Could play warning sound here
-                break;
-
-            case 'cop_active':
-                gameRenderer.showCopWarning(true);
-                break;
-
-            case 'cop_end':
-                gameRenderer.showCopWarning(false);
-                break;
-
-            case 'cop_damage':
-                gameRenderer.addEffect({
-                    type: 'hit',
-                    x: 640,
-                    y: 360,
-                    duration: 300
-                });
-                break;
-
             case 'powerup_spawn':
             case 'healthbox_spawn':
                 // Handled by state update

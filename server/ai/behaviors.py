@@ -17,7 +17,6 @@ class BehaviorState(Enum):
     ATTACK = "attack"
     RETREAT = "retreat"
     EVADE = "evade"
-    HIDE = "hide"          # For cop mechanic
     COLLECT = "collect"    # Going for powerup/health
 
 
@@ -81,10 +80,6 @@ class BehaviorTree:
     def decide(self, bot: Player, enemies: List[Player], game_state: dict) -> BehaviorDecision:
         """Main decision-making function"""
         decision = BehaviorDecision()
-
-        # Check for cop - highest priority
-        if game_state.get('cop_active') or game_state.get('cop_warning'):
-            return self._handle_cop_behavior(bot, game_state, decision)
 
         # Find nearest enemy
         nearest_enemy = self._find_nearest_enemy(bot, enemies)
@@ -166,36 +161,6 @@ class BehaviorTree:
             return True
 
         return random.random() < 0.3
-
-    def _handle_cop_behavior(self, bot: Player, game_state: dict,
-                             decision: BehaviorDecision) -> BehaviorDecision:
-        """Handle cop mechanic - find cover"""
-        decision.hide = True
-        self.current_state = BehaviorState.HIDE
-
-        # Find nearest cover (obstacle)
-        arena = game_state.get('arena', {})
-        obstacles = arena.get('obstacles', [])
-
-        if not obstacles:
-            return decision
-
-        # Find nearest cover obstacle
-        cover_obstacles = [o for o in obstacles if o.get('provides_cover', True)]
-        if not cover_obstacles:
-            return decision
-
-        nearest = min(cover_obstacles,
-                      key=lambda o: abs(bot.x - o['x']))
-
-        # Move toward cover
-        if abs(bot.x - nearest['x']) > 30:
-            if bot.x < nearest['x']:
-                decision.move = 'right'
-            else:
-                decision.move = 'left'
-
-        return decision
 
     def _wander_behavior(self, bot: Player, decision: BehaviorDecision) -> BehaviorDecision:
         """Wander when no enemies"""

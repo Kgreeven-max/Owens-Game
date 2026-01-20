@@ -1,6 +1,6 @@
 """
 Arena Brawl - Game Events
-Handles cop spawns, power-up drops, and other timed events
+Handles power-up drops and other timed events
 """
 import time
 import random
@@ -15,9 +15,6 @@ from server.entities.healthbox import HealthBox
 
 
 class EventType(Enum):
-    COP_WARNING = "cop_warning"
-    COP_ACTIVE = "cop_active"
-    COP_END = "cop_end"
     POWERUP_SPAWN = "powerup_spawn"
     HEALTHBOX_SPAWN = "healthbox_spawn"
     SUDDEN_DEATH = "sudden_death"
@@ -41,20 +38,13 @@ class EventManager:
         self.active_powerups: List[PowerUp] = []
         self.active_healthboxes: List[HealthBox] = []
 
-        # Cop state
-        self.cop_active = False
-        self.cop_warning = False
-        self.cop_end_time = 0.0
-
         # Spawn positions for items
         self.arena_width = self.config.ARENA_WIDTH
         self.arena_height = self.config.ARENA_HEIGHT
         self.ground_y = self.config.GROUND_Y
 
         # Timing
-        self.last_cop_spawn = 0.0
         self.last_item_spawn = 0.0
-        self.next_cop_time = 0.0
         self.next_item_time = 0.0
 
         # Callbacks
@@ -65,40 +55,9 @@ class EventManager:
         self.events.clear()
         self.active_powerups.clear()
         self.active_healthboxes.clear()
-        self.cop_active = False
-        self.cop_warning = False
 
-        # Schedule first events
-        self._schedule_next_cop(match_start_time)
+        # Schedule first item spawn
         self._schedule_next_item(match_start_time)
-
-    def _schedule_next_cop(self, current_time: float):
-        """Schedule the next cop spawn"""
-        min_interval, max_interval = self.config.COP_SPAWN_INTERVAL
-        delay = random.uniform(min_interval, max_interval)
-        self.next_cop_time = current_time + delay
-
-        # Schedule warning first
-        warning_time = self.next_cop_time - self.config.COP_WARNING_TIME
-        self.events.append(GameEvent(
-            event_type=EventType.COP_WARNING,
-            trigger_time=warning_time,
-            data={'cop_arrival_time': self.next_cop_time}
-        ))
-
-        # Schedule cop arrival
-        self.events.append(GameEvent(
-            event_type=EventType.COP_ACTIVE,
-            trigger_time=self.next_cop_time,
-            data={'duration': self.config.COP_DURATION}
-        ))
-
-        # Schedule cop departure
-        self.events.append(GameEvent(
-            event_type=EventType.COP_END,
-            trigger_time=self.next_cop_time + self.config.COP_DURATION,
-            data={}
-        ))
 
     def _schedule_next_item(self, current_time: float):
         """Schedule next power-up or health box spawn"""
@@ -145,29 +104,7 @@ class EventManager:
 
     def _handle_event(self, event: GameEvent, current_time: float) -> Optional[dict]:
         """Handle a triggered event"""
-        if event.event_type == EventType.COP_WARNING:
-            self.cop_warning = True
-            return {
-                'type': 'cop_warning',
-                'arrival_in': event.data['cop_arrival_time'] - current_time
-            }
-
-        elif event.event_type == EventType.COP_ACTIVE:
-            self.cop_warning = False
-            self.cop_active = True
-            self.cop_end_time = current_time + event.data['duration']
-            return {
-                'type': 'cop_active',
-                'duration': event.data['duration']
-            }
-
-        elif event.event_type == EventType.COP_END:
-            self.cop_active = False
-            # Schedule next cop
-            self._schedule_next_cop(current_time)
-            return {'type': 'cop_end'}
-
-        elif event.event_type == EventType.POWERUP_SPAWN:
+        if event.event_type == EventType.POWERUP_SPAWN:
             powerup = PowerUp.create_random(
                 id=str(uuid.uuid4())[:8],
                 x=event.data['x'],
@@ -242,46 +179,9 @@ class EventManager:
                 }
         return None
 
-    def check_cop_damage(self, player, obstacles) -> Optional[dict]:
-        """Check if player should take cop damage (not in cover)"""
-        if not self.cop_active:
-            return None
-
-        # Check if player is hiding
-        if player.is_hiding:
-            return None
-
-        # Check if player is behind cover
-        from server.game.physics import PhysicsEngine
-        physics = PhysicsEngine(self.config)
-        from server.game.physics import Obstacle as PhysicsObstacle, Rectangle
-
-        physics_obstacles = []
-        for obs in obstacles:
-            physics_obstacles.append(PhysicsObstacle(
-                rect=Rectangle(obs.x, obs.y, obs.width, obs.height),
-                provides_cover=obs.provides_cover
-            ))
-
-        if physics.is_in_cover(player, physics_obstacles):
-            return None
-
-        # Deal cop damage
-        damage = int(player.stats.max_hp * (self.config.COP_DAMAGE / 100))
-        player.take_damage(damage)
-
-        return {
-            'type': 'cop_damage',
-            'player_id': player.id,
-            'damage': damage
-        }
-
     def get_state(self) -> dict:
         """Get current event state for network sync"""
         return {
-            'cop_active': self.cop_active,
-            'cop_warning': self.cop_warning,
-            'cop_end_time': self.cop_end_time if self.cop_active else 0,
             'powerups': [p.to_dict() for p in self.active_powerups if p.is_active],
             'healthboxes': [h.to_dict() for h in self.active_healthboxes if h.is_active]
         }

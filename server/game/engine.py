@@ -166,6 +166,10 @@ class GameEngine:
             self._end_match_timeout()
             return self._get_state()
 
+        # Update moving platforms
+        if hasattr(self.arena, 'update'):
+            self.arena.update(current_time)
+
         # Update physics obstacles from arena
         physics_obstacles = self._get_physics_obstacles()
         platforms = self._get_platforms()
@@ -176,15 +180,36 @@ class GameEngine:
             if player.state == PlayerState.DEAD:
                 continue
 
+            # Process dodge/parry input
+            self.physics.process_dodge_input(player)
+
+            # Update dodge state
+            self.physics.update_dodge_state(player)
+
             # Process attack input
             self.combat.process_attack_input(player)
 
             # Update physics
             self.physics.update_player(player, platforms, physics_obstacles, dt)
 
+            # Check for ledge grab
+            self.physics.check_ledge_grab(player, platforms)
+
+            # Process ledge options
+            self.physics.process_ledge_options(player)
+
         # Update combat and get hits
         combat_hits = self.combat.update_attacks(list(self.players.values()))
         hits.extend(combat_hits)
+
+        # Check for grab connections
+        for player in self.players.values():
+            if player.state == PlayerState.ATTACKING:
+                grabbed = self.combat.process_grab_hit(player, list(self.players.values()))
+
+        # Update active grabs and throws
+        grab_hits = self.combat.update_grabs(self.players)
+        hits.extend(grab_hits)
 
         # Process hits
         for hit in hits:
@@ -196,16 +221,11 @@ class GameEngine:
             if self.on_event:
                 self.on_event(event_data)
 
-        # Check cop damage
-        if self.events.cop_active:
-            for player in self.players.values():
-                if player.state != PlayerState.DEAD:
-                    cop_result = self.events.check_cop_damage(player, self.arena.obstacles)
-                    if cop_result and self.on_event:
-                        self.on_event(cop_result)
-
         # Check item collection
         self._check_item_collection()
+
+        # Check blast zones (SSB-style KO boundaries)
+        self._check_blast_zones()
 
         # Check for eliminations
         self._check_eliminations()
@@ -282,6 +302,42 @@ class GameEngine:
                         if self.on_event:
                             self.on_event(result)
 
+    def _check_blast_zones(self):
+        """Check if any players have crossed blast zone boundaries (SSB-style KO)"""
+        if not self.arena or not hasattr(self.arena, 'blast_zones'):
+            return
+
+        blast_zones = self.arena.blast_zones
+
+        for player in self.players.values():
+            if player.state == PlayerState.DEAD:
+                continue
+
+            # Check if player is outside blast zones
+            ko_direction = blast_zones.is_player_out(player.x, player.y)
+
+            if ko_direction:
+                # Player is KO'd!
+                player.lives -= 1
+                player.state = PlayerState.DEAD
+
+                # Record who got the last hit (for kill credit)
+                if player.last_hit_by and player.last_hit_by in self.player_stats:
+                    self.player_stats[player.last_hit_by]['kills'] += 1
+
+                # Send KO event
+                if self.on_event:
+                    self.on_event({
+                        'type': 'blast_zone_ko',
+                        'player_id': player.id,
+                        'player_name': player.name,
+                        'direction': ko_direction,
+                        'x': player.x,
+                        'y': player.y,
+                        'last_hit_by': player.last_hit_by,
+                        'lives_remaining': player.lives
+                    })
+
     def _check_eliminations(self):
         """Check for player eliminations and respawns"""
         for player in self.players.values():
@@ -347,15 +403,23 @@ class GameEngine:
         player.input_left = move == 'left'
         player.input_right = move == 'right'
         player.input_jump = move == 'jump' or input_data.get('jump', False)
+        player.input_up = input_data.get('up', False)
+        player.input_down = input_data.get('down', False)
 
         action = input_data.get('action', 'none')
         player.input_attack = action == 'attack'
-        player.input_heavy = action == 'heavy'
+        player.input_heavy = input_data.get('heavy', False)  # Smash modifier
         player.input_special = action == 'special'
         player.input_block = action == 'block'
+        player.input_dodge = action == 'dodge' or input_data.get('dodge', False)
+        player.input_grab = action == 'grab' or input_data.get('grab', False)
 
-        # Hiding state (for cop mechanic)
-        player.is_hiding = input_data.get('hide', False)
+        # Update DI direction during hitstun
+        if player.state in [PlayerState.STUNNED, PlayerState.TUMBLING]:
+            di_x = 1 if player.input_right else (-1 if player.input_left else 0)
+            di_y = -1 if player.input_up else (1 if player.input_down else 0)
+            player.di_direction = (di_x, di_y)
+
 
     def _get_state(self) -> dict:
         """Get current game state for network sync"""

@@ -14,7 +14,9 @@ class InputHandler {
             attack: false,
             heavy: false,
             special: false,
-            block: false
+            block: false,
+            dodge: false,  // Parry/dodge button
+            grab: false    // Grab button
         };
 
         // Touch state
@@ -27,10 +29,12 @@ class InputHandler {
             'KeyW': 'up',
             'KeyS': 'down',
             'KeyJ': 'attack',
-            'KeyK': 'heavy',
+            'KeyK': 'heavy',      // Smash modifier
             'KeyL': 'special',
-            'Space': 'up',      // Space also jumps
-            'ShiftLeft': 'block'
+            'KeyI': 'dodge',      // Dodge/parry button
+            'KeyU': 'grab',       // Grab button
+            'Space': 'up',        // Space also jumps
+            'ShiftLeft': 'dodge'  // Shift is dodge
         };
 
         // Alternative mappings (Arrow keys + Numpad)
@@ -42,7 +46,9 @@ class InputHandler {
             'Numpad1': 'attack',
             'Numpad2': 'heavy',
             'Numpad3': 'special',
-            'Numpad0': 'block'
+            'Numpad4': 'grab',
+            'Numpad0': 'dodge',
+            'NumpadEnter': 'dodge'
         };
 
         this.enabled = false;
@@ -146,25 +152,37 @@ class InputHandler {
         // Check for jump
         const jump = this.keys.up;
 
-        // Determine action (priority: special > heavy > attack > block)
+        // Determine action (priority: dodge > grab > special > attack)
+        // Note: heavy is now a modifier for smash attacks, not an action
         let action = 'none';
-        if (this.keys.special) {
+        if (this.keys.dodge) {
+            action = 'dodge';
+        } else if (this.keys.grab) {
+            action = 'grab';
+        } else if (this.keys.special) {
             action = 'special';
-        } else if (this.keys.heavy) {
-            action = 'heavy';
         } else if (this.keys.attack) {
             action = 'attack';
-        } else if (this.keys.block || this.keys.down) {
-            action = 'block';
         }
 
-        // Check if hiding (crouch/block while cop is active)
+        // Check if holding down (crouch/fast fall)
+        const down = this.keys.down;
+
+        // Check if holding up (for up-tilt/up-smash)
+        const up = this.keys.up;
+
+        // Check if hiding (crouch while cop is active - legacy)
         const hide = this.keys.down;
 
         return {
             move: move,
             action: action,
             jump: jump,
+            up: up,
+            down: down,
+            heavy: this.keys.heavy,  // Smash modifier
+            dodge: this.keys.dodge,
+            grab: this.keys.grab,
             hide: hide
         };
     }

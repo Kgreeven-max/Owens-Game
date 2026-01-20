@@ -1,0 +1,82 @@
+{
+    "blaze": {
+        "spriteSheet": "blaze_sprites.png",
+        "frameWidth": 128,
+        "frameHeight": 128,
+        "animations": {
+            "idle": { "startFrame": 0, "frames": 4, "duration": 200, "loop": true },
+            "walk": { "startFrame": 4, "frames": 8, "duration": 100, "loop": true },
+            "jump": { "startFrame": 12, "frames": 3, "duration": 100, "loop": false },
+            "fall": { "startFrame": 15, "frames": 2, "duration": 150, "loop": true },
+            "attack_light_0": { "startFrame": 17, "frames": 5, "duration": 50, "loop": false },
+            "attack_light_1": { "startFrame": 22, "frames": 5, "duration": 50, "loop": false },
+            "attack_light_2": { "startFrame": 27, "frames": 5, "duration": 50, "loop": false },
+            "attack_heavy": { "startFrame": 32, "frames": 8, "duration": 70, "loop": false },
+            "special": { "startFrame": 40, "frames": 10, "duration": 60, "loop": false },
+            "stunned": { "startFrame": 50, "frames": 3, "duration": 100, "loop": true },
+            "death": { "startFrame": 53, "frames": 6, "duration": 120, "loop": false },
+            "spawn": { "startFrame": 59, "frames": 4, "duration": 100, "loop": false },
+            "blocking": { "startFrame": 63, "frames": 2, "duration": 150, "loop": true }
+        }
+    },
+    "tank": {
+        "spriteSheet": "tank_sprites.png",
+        "frameWidth": 128,
+        "frameHeight": 128,
+        "animations": {
+            "idle": { "startFrame": 0, "frames": 4, "duration": 200, "loop": true },
+            "walk": { "startFrame": 4, "frames": 8, "duration": 100, "loop": true },
+            "jump": { "startFrame": 12, "frames": 3, "duration": 100, "loop": false },
+            "fall": { "startFrame": 15, "frames": 2, "duration": 150, "loop": true },
+            "attack_light_0": { "startFrame": 17, "frames": 5, "duration": 50, "loop": false },
+            "attack_light_1": { "startFrame": 22, "frames": 5, "duration": 50, "loop": false },
+            "attack_light_2": { "startFrame": 27, "frames": 5, "duration": 50, "loop": false },
+            "attack_heavy": { "startFrame": 32, "frames": 8, "duration": 70, "loop": false },
+            "special": { "startFrame": 40, "frames": 10, "duration": 60, "loop": false },
+            "stunned": { "startFrame": 50, "frames": 3, "duration": 100, "loop": true },
+            "death": { "startFrame": 53, "frames": 6, "duration": 120, "loop": false },
+            "spawn": { "startFrame": 59, "frames": 4, "duration": 100, "loop": false },
+            "blocking": { "startFrame": 63, "frames": 2, "duration": 150, "loop": true }
+        }
+    },
+    "shadow": {
+        "spriteSheet": "shadow_sprites.png",
+        "frameWidth": 128,
+        "frameHeight": 128,
+        "animations": {
+            "idle": { "startFrame": 0, "frames": 4, "duration": 200, "loop": true },
+            "walk": { "startFrame": 4, "frames": 8, "duration": 100, "loop": true },
+            "jump": { "startFrame": 12, "frames": 3, "duration": 100, "loop": false },
+            "fall": { "startFrame": 15, "frames": 2, "duration": 150, "loop": true },
+            "attack_light_0": { "startFrame": 17, "frames": 5, "duration": 50, "loop": false },
+            "attack_light_1": { "startFrame": 22, "frames": 5, "duration": 50, "loop": false },
+            "attack_light_2": { "startFrame": 27, "frames": 5, "duration": 50, "loop": false },
+            "attack_heavy": { "startFrame": 32, "frames": 8, "duration": 70, "loop": false },
+            "special": { "startFrame": 40, "frames": 10, "duration": 60, "loop": false },
+            "stunned": { "startFrame": 50, "frames": 3, "duration": 100, "loop": true },
+            "death": { "startFrame": 53, "frames": 6, "duration": 120, "loop": false },
+            "spawn": { "startFrame": 59, "frames": 4, "duration": 100, "loop": false },
+            "blocking": { "startFrame": 63, "frames": 2, "duration": 150, "loop": true }
+        }
+    },
+    "storm": {
+        "spriteSheet": "storm_sprites.png",
+        "frameWidth": 128,
+        "frameHeight": 128,
+        "animations": {
+            "idle": { "startFrame": 0, "frames": 4, "duration": 200, "loop": true },
+            "walk": { "startFrame": 4, "frames": 8, "duration": 100, "loop": true },
+            "jump": { "startFrame": 12, "frames": 3, "duration": 100, "loop": false },
+            "fall": { "startFrame": 15, "frames": 2, "duration": 150, "loop": true },
+            "attack_light_0": { "startFrame": 17, "frames": 5, "duration": 50, "loop": false },
+            "attack_light_1": { "startFrame": 22, "frames": 5, "duration": 50, "loop": false },
+            "attack_light_2": { "startFrame": 27, "frames": 5, "duration": 50, "loop": false },
+            "attack_heavy": { "startFrame": 32, "frames": 8, "duration": 70, "loop": false },
+            "special": { "startFrame": 40, "frames": 10, "duration": 60, "loop": false },
+            "stunned": { "startFrame": 50, "frames": 3, "duration": 100, "loop": true },
+            "death": { "startFrame": 53, "frames": 6, "duration": 120, "loop": false },
+            "spawn": { "startFrame": 59, "frames": 4, "duration": 100, "loop": false },
+            "blocking": { "startFrame": 63, "frames": 2, "duration": 150, "loop": true }
+        }
+    }
+}

@@ -11,19 +11,60 @@ from typing import Optional
 class PlayerState(Enum):
     IDLE = "idle"
     WALKING = "walking"
+    DASHING = "dashing"       # Initial dash burst
+    RUNNING = "running"       # Full speed run
+    TURNAROUND = "turnaround" # Reversing direction
+    CROUCHING = "crouching"   # Hold down
+    JUMP_SQUAT = "jump_squat" # Pre-jump frames
     JUMPING = "jumping"
     FALLING = "falling"
     ATTACKING = "attacking"
-    BLOCKING = "blocking"
+    BLOCKING = "blocking"     # Deprecated - use parry
+    PARRYING = "parrying"     # Frame-perfect parry
+    SPOT_DODGING = "spot_dodge"  # Dodge in place
+    AIR_DODGING = "air_dodge"    # Directional air dodge
     STUNNED = "stunned"
+    TUMBLING = "tumbling"     # High knockback tumble
+    LEDGE_HANG = "ledge_hang" # Hanging on ledge
     DEAD = "dead"
 
 
 class AttackType(Enum):
     NONE = "none"
+    # Legacy types (for compatibility)
     LIGHT = "light"
     HEAVY = "heavy"
     SPECIAL = "special"
+    # Ground attacks
+    JAB = "jab"
+    JAB2 = "jab2"
+    JAB3 = "jab3"
+    FTILT = "ftilt"      # Forward tilt
+    UTILT = "utilt"      # Up tilt
+    DTILT = "dtilt"      # Down tilt
+    DASH_ATTACK = "dash_attack"
+    # Smash attacks
+    FSMASH = "fsmash"    # Forward smash (chargeable)
+    USMASH = "usmash"    # Up smash (chargeable)
+    DSMASH = "dsmash"    # Down smash (chargeable)
+    # Aerial attacks
+    NAIR = "nair"        # Neutral air
+    FAIR = "fair"        # Forward air
+    BAIR = "bair"        # Back air
+    UAIR = "uair"        # Up air
+    DAIR = "dair"        # Down air
+    # Special moves
+    NEUTRAL_B = "neutral_b"
+    SIDE_B = "side_b"
+    UP_B = "up_b"
+    DOWN_B = "down_b"
+    # Grab
+    GRAB = "grab"
+    PUMMEL = "pummel"
+    FTHROW = "fthrow"
+    BTHROW = "bthrow"
+    UTHROW = "uthrow"
+    DTHROW = "dthrow"
 
 
 @dataclass
@@ -70,6 +111,7 @@ class Player:
     # Combo system
     combo_count: int = 0
     last_hit_time: float = 0.0
+    last_hit_by: str = ""  # ID of player who last hit us (for kill credit)
     combo_window: float = 0.5
 
     # Buffs
@@ -80,14 +122,58 @@ class Player:
     # Input state (set by network/AI)
     input_left: bool = False
     input_right: bool = False
+    input_up: bool = False         # For up-tilt/up-smash detection
     input_jump: bool = False
     input_attack: bool = False
-    input_heavy: bool = False
+    input_heavy: bool = False      # Now used for smash modifier
     input_special: bool = False
     input_block: bool = False
+    input_grab: bool = False       # Grab button
 
     # Hiding state (for cop mechanic)
     is_hiding: bool = False
+
+    # Movement state tracking (SSB-style)
+    dash_frame: int = 0            # Current frame in dash
+    turnaround_frame: int = 0      # Current frame in turnaround
+    jump_squat_frame: int = 0      # Current frame in jump squat
+    is_short_hop: bool = False     # True if jump button released during squat
+    air_jumps_used: int = 0        # Air jumps consumed
+    fast_falling: bool = False     # Currently fast falling
+
+    # Dodge state tracking
+    dodge_frame: int = 0           # Current frame in dodge
+    dodge_direction: tuple = (0, 0)  # Direction for air dodge
+    dodge_stale_count: int = 0     # Consecutive dodges (reduces i-frames)
+    last_dodge_time: float = 0.0   # For stale refresh
+
+    # Parry state
+    parry_frame: int = 0           # Current frame in parry
+    parry_success: bool = False    # Hit during parry window
+
+    # Smash charge state
+    smash_charging: bool = False   # Currently charging smash
+    smash_charge_frames: int = 0   # Frames spent charging (max 60)
+    smash_type: str = ""           # fsmash, usmash, dsmash
+
+    # Grab state
+    grabbed_player_id: str = ""    # ID of player we're grabbing
+    grabbed_by_id: str = ""        # ID of player grabbing us
+    grab_release_frame: int = 0    # Frame to auto-release grab
+
+    # Jab combo tracking
+    jab_count: int = 0             # Current jab in sequence (0-2)
+    jab_window_end: float = 0.0    # Time window to continue jab combo
+
+    # Directional Influence (DI)
+    di_direction: tuple = (0, 0)   # Player's DI input during hitstun
+
+    # Previous input for walk vs dash detection
+    prev_input_left: bool = False
+    prev_input_right: bool = False
+    prev_input_jump: bool = False  # For air jump detection
+    input_down: bool = False       # Crouch/fast fall input
+    input_dodge: bool = False      # Dodge button input
 
     # Animation
     animation: str = "idle"
@@ -241,7 +327,10 @@ class Player:
             'animation_frame': self.animation_frame,
             'combo_count': self.combo_count,
             'is_invincible': time.time() < self.invincible_until,
-            'is_hiding': self.is_hiding
+            'is_hiding': self.is_hiding,
+            'fast_falling': self.fast_falling,
+            'air_jumps_used': self.air_jumps_used,
+            'parry_success': self.parry_success
         }
 
     @classmethod
