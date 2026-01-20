@@ -14,6 +14,7 @@ from server.entities.character import get_character, get_character_names
 from server.game.physics import PhysicsEngine, Platform, Obstacle as PhysicsObstacle, Rectangle
 from server.game.combat import CombatSystem, HitResult
 from server.game.events import EventManager
+from server.game.modes import ModeManager, ModeSettings, GameMode, TeamColor, get_preset_mode
 from server.maps.arenas import Arena, get_arena
 
 
@@ -44,6 +45,11 @@ class GameEngine:
         self.physics = PhysicsEngine(self.config)
         self.combat = CombatSystem(self.config)
         self.events = EventManager(self.config)
+        self.mode_manager = ModeManager()
+
+        # Mode settings
+        self.game_mode: GameMode = GameMode.STOCK
+        self.team_assignments: Dict[str, TeamColor] = {}
 
         # Game state
         self.state = MatchState.WAITING
@@ -108,6 +114,21 @@ class GameEngine:
         """Set the arena for the match"""
         self.arena = get_arena(arena_name)
 
+    def set_mode(self, mode_name: str):
+        """Set the game mode using a preset name"""
+        settings = get_preset_mode(mode_name)
+        self.mode_manager = ModeManager(settings)
+        self.game_mode = settings.mode
+
+    def set_mode_settings(self, settings: ModeSettings):
+        """Set the game mode using custom settings"""
+        self.mode_manager = ModeManager(settings)
+        self.game_mode = settings.mode
+
+    def set_team(self, player_id: str, team: TeamColor):
+        """Assign a player to a team"""
+        self.team_assignments[player_id] = team
+
     def start_countdown(self):
         """Start the pre-match countdown"""
         if self.state != MatchState.WAITING:
@@ -131,19 +152,36 @@ class GameEngine:
             spawn_x, spawn_y = spawn_points[spawn_idx]
             player.x = spawn_x
             player.y = spawn_y
-            player.hp = player.stats.max_hp
-            player.lives = self.config.LIVES_PER_PLAYER
+
+            # Set HP based on mode
+            if self.game_mode == GameMode.STAMINA:
+                player.hp = self.mode_manager.settings.stamina_hp
+            else:
+                player.hp = player.stats.max_hp
+
+            # Set lives from mode settings
+            player.lives = self.mode_manager.settings.stock_count
             player.state = PlayerState.IDLE
 
     def start_match(self):
         """Start the actual match"""
         self.state = MatchState.PLAYING
         self.match_start_time = time.time()
-        self.match_end_time = self.match_start_time + self.config.MATCH_TIME
+
+        # Use mode manager's time limit if set
+        time_limit = self.mode_manager.settings.time_limit if self.mode_manager.settings.time_limit > 0 else self.config.MATCH_TIME
+        self.match_end_time = self.match_start_time + time_limit
         self.last_update = time.time()
 
-        # Initialize events
-        self.events.initialize(self.match_start_time)
+        # Initialize mode manager with players
+        self.mode_manager.initialize(
+            player_ids=list(self.players.keys()),
+            team_assignments=self.team_assignments if self.game_mode == GameMode.TEAMS else None
+        )
+
+        # Initialize events (respect mode settings)
+        if self.mode_manager.settings.items_enabled:
+            self.events.initialize(self.match_start_time)
 
     def update(self) -> dict:
         """Main game loop update - should be called at 60 FPS"""
@@ -264,11 +302,32 @@ class GameEngine:
 
     def _process_hit(self, hit: HitResult):
         """Process a combat hit"""
+        # Check if team attack is allowed
+        if not self.mode_manager.is_team_attack_allowed(hit.attacker_id, hit.target_id):
+            return  # Block friendly fire
+
         # Update stats
         if hit.attacker_id in self.player_stats:
             self.player_stats[hit.attacker_id]['damage_dealt'] += hit.damage_dealt
         if hit.target_id in self.player_stats:
             self.player_stats[hit.target_id]['damage_taken'] += hit.damage_dealt
+
+        # Process hit in mode manager (handles stamina mode KOs)
+        mode_result = self.mode_manager.process_hit(
+            hit.attacker_id, hit.target_id, hit.damage_dealt
+        )
+
+        # Handle stamina mode KO
+        if mode_result.get('ko') and mode_result.get('ko_type') == 'stamina':
+            target = self.players.get(hit.target_id)
+            if target:
+                target.state = PlayerState.DEAD
+                if self.on_event:
+                    self.on_event({
+                        'type': 'stamina_ko',
+                        'player_id': hit.target_id,
+                        'attacker_id': hit.attacker_id
+                    })
 
     def _check_item_collection(self):
         """Check if players are collecting powerups/healthboxes"""
@@ -317,13 +376,25 @@ class GameEngine:
             ko_direction = blast_zones.is_player_out(player.x, player.y)
 
             if ko_direction:
-                # Player is KO'd!
-                player.lives -= 1
+                # Process KO through mode manager
+                ko_result = self.mode_manager.process_blast_zone_ko(
+                    player.id, player.last_hit_by
+                )
+
+                # Update player state
                 player.state = PlayerState.DEAD
 
-                # Record who got the last hit (for kill credit)
+                # Stock mode: Decrement lives from mode manager
+                if self.game_mode == GameMode.STOCK:
+                    player.lives = self.mode_manager.player_states[player.id].stocks
+
+                # Record kill credit
                 if player.last_hit_by and player.last_hit_by in self.player_stats:
                     self.player_stats[player.last_hit_by]['kills'] += 1
+
+                # Self-destruct penalty in time mode
+                if ko_result.get('is_sd') and player.id in self.player_stats:
+                    self.player_stats[player.id]['deaths'] += 1
 
                 # Send KO event
                 if self.on_event:
@@ -335,47 +406,87 @@ class GameEngine:
                         'x': player.x,
                         'y': player.y,
                         'last_hit_by': player.last_hit_by,
-                        'lives_remaining': player.lives
+                        'lives_remaining': player.lives,
+                        'is_sd': ko_result.get('is_sd', False),
+                        'score': self.mode_manager.player_states.get(player.id, {})
                     })
 
     def _check_eliminations(self):
         """Check for player eliminations and respawns"""
         for player in self.players.values():
             if player.state == PlayerState.DEAD and player.id not in self.eliminated_players:
-                if player.lives <= 0:
+                # Check with mode manager if respawn is allowed
+                respawn_result = self.mode_manager.respawn_player(player.id)
+
+                if not respawn_result['can_respawn']:
                     # Permanently eliminated
                     self.eliminated_players.append(player.id)
-                    self.player_stats[player.id]['deaths'] += 1
+                    if player.id in self.player_stats:
+                        self.player_stats[player.id]['deaths'] += 1
                     if self.on_player_eliminated:
                         self.on_player_eliminated(player.id, player.name)
                 else:
                     # Respawn after delay
                     spawn_idx = self.player_order.index(player.id) % len(self.arena.spawn_points)
                     spawn_x, spawn_y = self.arena.spawn_points[spawn_idx]
+
+                    # Set HP based on mode
+                    if self.game_mode == GameMode.STAMINA:
+                        player.hp = respawn_result.get('hp', self.mode_manager.settings.stamina_hp)
+                    else:
+                        player.hp = player.stats.max_hp
+
                     player.respawn(spawn_x, spawn_y, self.config.RESPAWN_INVINCIBILITY)
 
     def _check_win_condition(self):
         """Check if match should end"""
-        alive_players = [p for p in self.players.values()
-                         if p.state != PlayerState.DEAD or p.lives > 0]
+        # Use mode manager's win condition check
+        win_result = self.mode_manager.check_win_condition()
 
-        if len(alive_players) <= 1 and len(self.players) > 1:
-            winner = alive_players[0] if alive_players else None
-            self._end_match(winner)
+        if win_result['match_over']:
+            if win_result.get('winner_team'):
+                # Team win - find a player from winning team
+                team_color = win_result['winner_team']
+                team = self.mode_manager.teams.get(team_color)
+                if team and team.player_ids:
+                    winner = self.players.get(team.player_ids[0])
+                else:
+                    winner = None
+            else:
+                # Individual win
+                winner_id = win_result.get('winner_id')
+                winner = self.players.get(winner_id) if winner_id else None
+
+            self._end_match(winner, win_result)
 
     def _end_match_timeout(self):
-        """End match due to timeout - winner is player with most lives/hp"""
-        alive_players = [p for p in self.players.values() if p.state != PlayerState.DEAD]
+        """End match due to timeout - use mode manager to determine winner"""
+        # Mode manager handles timeout logic
+        win_result = {
+            'match_over': True,
+            'reason': 'time_up'
+        }
 
-        if not alive_players:
-            self._end_match(None)
-            return
+        # Get winner based on mode
+        if self.game_mode == GameMode.TIME:
+            # Highest score wins
+            scoreboard = self.mode_manager.get_scoreboard()
+            if scoreboard:
+                winner = self.players.get(scoreboard[0]['player_id'])
+            else:
+                winner = None
+        else:
+            # Most lives/HP wins
+            alive_players = [p for p in self.players.values() if p.state != PlayerState.DEAD]
+            if alive_players:
+                alive_players.sort(key=lambda p: (p.lives, p.hp), reverse=True)
+                winner = alive_players[0]
+            else:
+                winner = None
 
-        # Sort by lives, then HP
-        alive_players.sort(key=lambda p: (p.lives, p.hp), reverse=True)
-        self._end_match(alive_players[0])
+        self._end_match(winner, win_result)
 
-    def _end_match(self, winner: Optional[Player]):
+    def _end_match(self, winner: Optional[Player], win_result: dict = None):
         """End the match"""
         self.state = MatchState.FINISHED
 
@@ -385,6 +496,14 @@ class GameEngine:
             match_duration=time.time() - self.match_start_time,
             player_stats=self.player_stats
         )
+
+        # Add mode-specific info to result
+        if win_result:
+            result.player_stats['_mode_result'] = {
+                'reason': win_result.get('reason'),
+                'winner_team': win_result.get('winner_team').value if win_result.get('winner_team') else None,
+                'scoreboard': self.mode_manager.get_scoreboard()
+            }
 
         if self.on_match_end:
             self.on_match_end(result)
@@ -442,7 +561,9 @@ class GameEngine:
             'players': [self.players[pid].to_dict() for pid in self.player_order
                         if pid in self.players],
             'events': self.events.get_state(),
-            'eliminated': self.eliminated_players
+            'eliminated': self.eliminated_players,
+            'mode': self.mode_manager.get_state(),
+            'scoreboard': self.mode_manager.get_scoreboard() if self.state == MatchState.PLAYING else None
         }
 
     def get_player(self, player_id: str) -> Optional[Player]:
