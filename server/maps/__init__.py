@@ -1,0 +1,1 @@
+# Arena map definitions

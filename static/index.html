@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Arena Brawl</title>
+    <link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+    <!-- Main Menu Screen -->
+    <div id="menu-screen" class="screen active">
+        <div class="menu-container">
+            <h1 class="game-title">ARENA BRAWL</h1>
+            <div class="menu-content">
+                <input type="text" id="player-name" placeholder="Enter your name" maxlength="20">
+                <button id="btn-quick-match" class="menu-btn primary">Quick Match</button>
+                <button id="btn-create-room" class="menu-btn">Create Room</button>
+                <button id="btn-browse-rooms" class="menu-btn">Browse Rooms</button>
+                <button id="btn-practice" class="menu-btn">Practice vs AI</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Room Browser Screen -->
+    <div id="browser-screen" class="screen">
+        <div class="browser-container">
+            <h2>Available Rooms</h2>
+            <div id="room-list" class="room-list">
+                <p class="no-rooms">No rooms available. Create one!</p>
+            </div>
+            <button id="btn-back-menu" class="menu-btn">Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- Create Room Screen -->
+    <div id="create-screen" class="screen">
+        <div class="create-container">
+            <h2>Create Room</h2>
+            <input type="text" id="room-name" placeholder="Room name">
+            <div class="arena-select">
+                <label>Arena:</label>
+                <select id="arena-select">
+                    <option value="street">Street Fight</option>
+                    <option value="rooftop">Rooftop Rumble</option>
+                    <option value="warehouse">Warehouse Brawl</option>
+                    <option value="park">Park Showdown</option>
+                </select>
+            </div>
+            <button id="btn-confirm-create" class="menu-btn primary">Create</button>
+            <button id="btn-back-create" class="menu-btn">Back</button>
+        </div>
+    </div>
+
+    <!-- Lobby Screen -->
+    <div id="lobby-screen" class="screen">
+        <div class="lobby-container">
+            <h2 id="lobby-title">Game Lobby</h2>
+            <div id="lobby-players" class="lobby-players">
+                <!-- Players will be added here -->
+            </div>
+            <div class="character-select">
+                <h3>Select Character</h3>
+                <div id="character-grid" class="character-grid">
+                    <!-- Characters will be added here -->
+                </div>
+            </div>
+            <div class="lobby-controls">
+                <button id="btn-ready" class="menu-btn primary">Ready</button>
+                <button id="btn-add-bot" class="menu-btn">Add Bot</button>
+                <button id="btn-start" class="menu-btn" style="display:none;">Start Game</button>
+                <button id="btn-leave-lobby" class="menu-btn danger">Leave</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen">
+        <div class="game-container">
+            <!-- Game HUD -->
+            <div id="game-hud" class="game-hud">
+                <div id="player-health-bars" class="health-bars">
+                    <!-- Health bars added dynamically -->
+                </div>
+                <div id="game-timer" class="game-timer">3:00</div>
+                <div id="cop-warning" class="cop-warning hidden">COPS INCOMING!</div>
+            </div>
+
+            <!-- Game Canvas -->
+            <canvas id="game-canvas"></canvas>
+
+            <!-- Mobile Controls -->
+            <div id="mobile-controls" class="mobile-controls">
+                <div class="dpad">
+                    <button id="btn-up" class="dpad-btn up">^</button>
+                    <button id="btn-left" class="dpad-btn left">&lt;</button>
+                    <button id="btn-right" class="dpad-btn right">&gt;</button>
+                    <button id="btn-down" class="dpad-btn down">v</button>
+                </div>
+                <div class="action-buttons">
+                    <button id="btn-attack" class="action-btn attack">ATK</button>
+                    <button id="btn-heavy" class="action-btn heavy">HVY</button>
+                    <button id="btn-special" class="action-btn special">SPL</button>
+                    <button id="btn-block" class="action-btn block">BLK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Screen -->
+    <div id="results-screen" class="screen">
+        <div class="results-container">
+            <h2 id="result-title">Match Over!</h2>
+            <div id="winner-display" class="winner-display">
+                <span id="winner-name">Player 1</span> WINS!
+            </div>
+            <div id="match-stats" class="match-stats">
+                <!-- Stats added dynamically -->
+            </div>
+            <button id="btn-rematch" class="menu-btn primary">Play Again</button>
+            <button id="btn-back-lobby" class="menu-btn">Back to Lobby</button>
+        </div>
+    </div>
+
+    <!-- Countdown Overlay -->
+    <div id="countdown-overlay" class="countdown-overlay hidden">
+        <span id="countdown-number">3</span>
+    </div>
+
+    <!-- Connection Status -->
+    <div id="connection-status" class="connection-status">
+        <span class="status-dot"></span>
+        <span class="status-text">Connecting...</span>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="js/network.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
